@@ -36,7 +36,8 @@ LIMIT_REPLICATIONS_LIMIT_FUNCTIONS = {
 
 
 auctions_server = Flask(__name__)
-CORS(auctions_server, supports_credentials=True, origins="localhost")
+# FIXME: use config parameter
+CORS(auctions_server, supports_credentials=True, origins="localhost:8090")
 logging.getLogger('flask_cors').level = logging.DEBUG
 
 @auctions_server.before_request
