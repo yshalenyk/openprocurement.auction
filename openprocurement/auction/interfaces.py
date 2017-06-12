@@ -4,7 +4,11 @@ from zope.interface import Interface
 class IAuction(Interface):
     """"""
 
-    
+
+class IFeedItem(Interface):
+    """"""
+
+
 class IAuctionDatabridge(Interface):
     """"""
 
@@ -12,7 +16,10 @@ class IAuctionDatabridge(Interface):
 class IAuctionDocument(Interface):
     """"""
 
-    
+class IWorkerCmd(Interface):
+    """"""
+
+
 class IAuctionWorker(Interface):
     """"""
 
@@ -25,12 +32,13 @@ class IAuctionLogger(Interface):
     """"""
     
 
-class IAuctionMangager(Interface):
+class IAuctionManager(Interface):
     """"""
 
     
 class IPredicateRegistry(Interface):
     """"""
 
-class IRegistry(Interface):
+
+class IComponents(Interface):
     """"""
