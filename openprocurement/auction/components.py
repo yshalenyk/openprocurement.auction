@@ -6,11 +6,6 @@ from openprocurement.auction.interfaces import IComponents
 @interface.implementer(IComponents)
 class AuctionComponents(Components):
 
-    def getImplementer(self, obj, iface, default):
-        if not iface.providedBy(obj):
-            return self.queryAdapter(obj, iface, default=default)
-        return obj
-
     def adapter(self, provides, adapts, name=""):
         """ TODO: create decorator for such thinks """
         
@@ -21,43 +16,39 @@ class AuctionComponents(Components):
             
             self.registerAdapter(
                 wrapper,
-                provides,
                 adapts,
+                provides,
                 name=name
             )
             return wrapper
 
         return wrapped
         
-    def component(self, provides="", name=""):
+    def component(self):
         """ TODO: use wraps decorator??
         """
         
-        def wrapped(wrapped):
+        def wrapped(Wrapped):
             try:
-                iface = list(implementedBy(wrapped))[0]
+                iface = list(implementedBy(Wrapped))[0]
             except IndexError:
-                raise ValueError("{} should be marked as interface".format(wrapped.__name__))
-            
-            class Wrapped(wrapped):
-                __doc__ = wrapped.__doc__
-                __name__ = wrapped.__name__
-                def __new__(cls, *args, **kw):
-                    ob = sef.queryUtility(provides, name=name)
-                    if not ob:
-                        ob = super(Wrapped, cls).__new__(*ags, **kw)
-                        self.regiterUtility(ob, provides, name=name)
-                    return ob
+                raise ValueError("{} should be marked as interface".format(Wrapped.__name__))
+            name = Wrapped.__name__.lower()
+            def new(cls, *args, **kw):
+                ob = self.queryUtility(iface, name=name)
+                if not ob:
+                    ob = super(Wrapped, cls).__new__(*args, **kw)
+                    self.regiterUtility(ob, iface, name=name)
+                return ob
+            Wrapped.__new__ = classmethod(new)
             return Wrapped
+
         return wrapped
 
-    def qA(self, obj, iface, name=''):
-        return self.queryAdapter(obj, iface, name=name)
-        
     def q(self, iface, name='', default=''):
         """ TODO: query the component by 'iface' """    
         return self.queryUtility(iface, name=name, default=default)
 
-        
+
 components = AuctionComponents()
 
