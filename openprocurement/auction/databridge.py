@@ -45,6 +45,7 @@ from openprocurement_client.sync import get_tenders
 from yaml import load
 from .design import endDate_view, startDate_view, PreAnnounce_view
 from .utils import do_until_success
+from .log import AuctionLogger
 from design import sync_design
 
 from zope.interface import implementer
@@ -60,7 +61,7 @@ LOGGER = logging.getLogger(__name__)
 class AuctionsDataBridge(object):
 
     """Auctions Data Bridge"""
-
+    logger = AuctionLogger(logger=LOGGER)
     def __init__(self, config):
         super(AuctionsDataBridge, self).__init__()
         self.config = config
@@ -98,21 +99,13 @@ class AuctionsDataBridge(object):
                         key=(mktime(start_date.timetuple()) + start_date.microsecond / 1E6) * 1000
                     )
                     if datetime.now(self.tz) > start_date:
-                        # TODO: self.logger
-                        # self.logger("SKIP")
-                        #logger.info("Tender {} start date in past. Skip it for planning".format(item['id']),
-                        #            extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_TENDER_SKIP})
+                        self.logger("SKIP")
                         continue
                     if re_planning and item['id'] in self.tenders_ids_list:
-                        # TODO:
-                        # self.logger
-                        #logger.info("Tender {} already planned while replanning".format(item['id']),
-                        #            extra={'MESSAGE_ID': DATA_BRIDGE_RE_PLANNING_TENDER_ALREADY_PLANNED})
+                        self.logger("ALREADY_REPLANNED")
                         continue
                     elif not re_planning and [row.id for row in auctions_start_in_date.rows if row.id == item['id']]:
-                        # TODO: self.logger
-                        #logger.info("Tender {} already planned on same date".format(item['id']),
-                        #            extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_TENDER_ALREADY_PLANNED})
+                        self.self.logger("ALREADY_PLANNED")
                         continue
                     yield factory((str(item['id']), ))
 
@@ -121,8 +114,7 @@ class AuctionsDataBridge(object):
                     self.db, startkey=time() * 1000
                 )
                 if item["id"] in [i.id for i in future_auctions]:
-                    # TODO: self.logger
-                    logger.info('Tender {0} selected for cancellation'.format(item['id']))
+                    self.logger.info('CANCELLED')
                     # TODO: yield
                     #self.start_auction_worker_cmd('cancel', item["id"])
 
@@ -138,16 +130,16 @@ class AuctionsDataBridge(object):
             args=(params,),
         )
 
-        logger.info("Auction command {} result: {}".format(params[1], result))
+        self.logger.info("Auction command {} result: {}".format(params[1], result))
 
     def run(self):
-        logger.info('Start Auctions Bridge',
+        self.logger.info('Start Auctions Bridge',
                     extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_START_BRIDGE})
-        logger.info('Start data sync...',
+        self.logger.info('Start data sync...',
                     extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_DATA_SYNC})
         for planning_data in self.get_teders_list():
-            logger.info('Tender {0} selected for planning'.format(*planning_data))
-            self.start_auction_worker_cmd('planning', planning_data[0])
+            self.logger.info('Tender {0} selected for planning'.format(*planning_data))
+            self.start_auction_worker_cmd(planning_data)
 
     def run_re_planning(self):
         pass
