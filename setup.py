@@ -27,6 +27,7 @@ setup(name='openprocurement.auction',
       install_requires=[
           'setuptools',
           'requests',
+          'zope.interface',
           'APScheduler',
           'zope.interface',
           'iso8601',
