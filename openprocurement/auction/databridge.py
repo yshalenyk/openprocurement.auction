@@ -47,14 +47,16 @@ from .design import endDate_view, startDate_view, PreAnnounce_view
 from .utils import do_until_success
 from design import sync_design
 
-SIMPLE_AUCTION_TYPE = 0
-SINGLE_LOT_AUCTION_TYPE = 1
+from zope.interface import implementer
+from .interfaces import IAuctionDatabridge, IWorkerFactory
+from .components import components
 
-MULTILOT_AUCTION_ID = "{0[id]}_{1[id]}"  # {TENDER_ID}_{LOT_ID}
+API_EXTRA = {'opt_fields': 'status,auctionPeriod,lots,procurementMethodType', 'mode': '_all_'}
+LOGGER = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
 
-
+@components.component()
+@implementer(IAuctionDatabridge)
 class AuctionsDataBridge(object):
 
     """Auctions Data Bridge"""
@@ -79,9 +81,14 @@ class AuctionsDataBridge(object):
     def get_teders_list(self, re_planning=False):
         for item in get_tenders(host=self.config_get('tenders_api_server'),
                                 version=self.config_get('tenders_api_version'),
-                                key='', extra_params={'opt_fields': 'status,auctionPeriod,lots', 'mode': '_all_'}):
+                                key='', extra_params=API_EXTRA):
+            # magic should happen here
+            # TODO:
+            factory = components.qA(item, IWorkerFactory)
+            if not fatory:
+                continue 
             if item['status'] == "active.auction":
-                if 'lots' not in item and 'auctionPeriod' in item and 'startDate' in item['auctionPeriod'] \
+                if 'auctionPeriod' in item and 'startDate' in item['auctionPeriod'] \
                         and 'endDate' not in item['auctionPeriod']:
 
                     start_date = iso8601.parse_date(item['auctionPeriod']['startDate'])
@@ -91,75 +98,39 @@ class AuctionsDataBridge(object):
                         key=(mktime(start_date.timetuple()) + start_date.microsecond / 1E6) * 1000
                     )
                     if datetime.now(self.tz) > start_date:
-                        logger.info("Tender {} start date in past. Skip it for planning".format(item['id']),
-                                    extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_TENDER_SKIP})
+                        # TODO: self.logger
+                        # self.logger("SKIP")
+                        #logger.info("Tender {} start date in past. Skip it for planning".format(item['id']),
+                        #            extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_TENDER_SKIP})
                         continue
                     if re_planning and item['id'] in self.tenders_ids_list:
-                        logger.info("Tender {} already planned while replanning".format(item['id']),
-                                    extra={'MESSAGE_ID': DATA_BRIDGE_RE_PLANNING_TENDER_ALREADY_PLANNED})
+                        # TODO:
+                        # self.logger
+                        #logger.info("Tender {} already planned while replanning".format(item['id']),
+                        #            extra={'MESSAGE_ID': DATA_BRIDGE_RE_PLANNING_TENDER_ALREADY_PLANNED})
                         continue
                     elif not re_planning and [row.id for row in auctions_start_in_date.rows if row.id == item['id']]:
-                        logger.info("Tender {} already planned on same date".format(item['id']),
-                                    extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_TENDER_ALREADY_PLANNED})
+                        # TODO: self.logger
+                        #logger.info("Tender {} already planned on same date".format(item['id']),
+                        #            extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_TENDER_ALREADY_PLANNED})
                         continue
-                    yield (str(item['id']), )
-                elif 'lots' in item:
-                    for lot in item['lots']:
-                        if lot["status"] == "active" and 'auctionPeriod' in lot \
-                                and 'startDate' in lot['auctionPeriod'] and 'endDate' not in lot['auctionPeriod']:
-                            start_date = iso8601.parse_date(lot['auctionPeriod']['startDate'])
-                            start_date = start_date.astimezone(self.tz)
-                            auctions_start_in_date = startDate_view(
-                                self.db,
-                                key=(mktime(start_date.timetuple()) + start_date.microsecond / 1E6) * 1000
-                            )
-                            if datetime.now(self.tz) > start_date:
-                                logger.info(
-                                    "Start date for lot {} in tender {} is in past. Skip it for planning".format(
-                                        lot['id'], item['id']),
-                                    extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_LOT_SKIP}
-                                )
-                                continue
-                            auction_id = MULTILOT_AUCTION_ID.format(item, lot)
-                            if re_planning and auction_id in self.tenders_ids_list:
-                                logger.info("Tender {} already planned while replanning".format(auction_id),
-                                            extra={'MESSAGE_ID': DATA_BRIDGE_RE_PLANNING_LOT_ALREADY_PLANNED})
-                                continue
-                            elif not re_planning and [row.id for row in auctions_start_in_date.rows if row.id == auction_id]:
-                                logger.info("Tender {} already planned on same date".format(auction_id),
-                                            extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_LOT_ALREADY_PLANNED})
-                                continue
-                            yield (str(item["id"]), str(lot["id"]), )
-            if item['status'] == "active.qualification" and 'lots' in item:
-                for lot in item['lots']:
-                    if lot["status"] == "active":
-                        is_pre_announce = PreAnnounce_view(self.db)
-                        auction_id = MULTILOT_AUCTION_ID.format(item, lot)
-                        if [row.id for row in is_pre_announce.rows if row.id == auction_id]:
-                            self.start_auction_worker_cmd('announce', item['id'], lot_id=lot['id'],)
+                    yield factory((str(item['id']), ))
+
             if item['status'] == "cancelled":
                 future_auctions = endDate_view(
                     self.db, startkey=time() * 1000
                 )
-                if 'lots' in item:
-                    for lot in item['lots']:
-                        auction_id = MULTILOT_AUCTION_ID.format(item, lot)
-                        if auction_id in [i.id for i in future_auctions]:
-                            logger.info('Tender {0} selected for cancellation'.format(item['id']))
-                            self.start_auction_worker_cmd('cancel', item['id'], lot_id=lot['id'])
-                else:
-                    if item["id"] in [i.id for i in future_auctions]:
-                        logger.info('Tender {0} selected for cancellation'.format(item['id']))
-                        self.start_auction_worker_cmd('cancel', item["id"])
+                if item["id"] in [i.id for i in future_auctions]:
+                    # TODO: self.logger
+                    logger.info('Tender {0} selected for cancellation'.format(item['id']))
+                    # TODO: yield
+                    #self.start_auction_worker_cmd('cancel', item["id"])
 
 
-    def start_auction_worker_cmd(self, cmd, tender_id, with_api_version=None, lot_id=None):
+    def start_auction_worker_cmd(self, cmd, tender_id, with_api_version=None):
         params = [self.config_get('auction_worker'),
                   cmd, tender_id,
                   self.config_get('auction_worker_config')]
-        if lot_id:
-            params += ['--lot', lot_id]
-
         if with_api_version:
             params += ['--with_api_version', with_api_version]
         result = do_until_success(
@@ -175,12 +146,8 @@ class AuctionsDataBridge(object):
         logger.info('Start data sync...',
                     extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_DATA_SYNC})
         for planning_data in self.get_teders_list():
-            if len(planning_data) == 1:
-                logger.info('Tender {0} selected for planning'.format(*planning_data))
-                self.start_auction_worker_cmd('planning', planning_data[0])
-            elif len(planning_data) == 2:
-                logger.info('Lot {1} of tender {0} selected for planning'.format(*planning_data))
-                self.start_auction_worker_cmd('planning', planning_data[0], lot_id=planning_data[1])
+            logger.info('Tender {0} selected for planning'.format(*planning_data))
+            self.start_auction_worker_cmd('planning', planning_data[0])
 
     def run_re_planning(self):
         pass
