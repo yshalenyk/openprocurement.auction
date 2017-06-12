@@ -114,11 +114,8 @@ class Auction(object):
         super(Auction, self).__init__()
         self.generate_request_id()
         self.tender_id = tender_id
-        self.lot_id = lot_id
-        if lot_id:
-            self.auction_doc_id = tender_id + "_" + lot_id
-        else:
-            self.auction_doc_id = tender_id
+        # self.lot_id = lot_id
+        self.auction_doc_id = tender_id
         self.tender_url = urljoin(
             worker_defaults["TENDERS_API_URL"],
             '/api/{0}/tenders/{1}'.format(
@@ -147,10 +144,8 @@ class Auction(object):
         self.bidders_data = []
         self.bidders_features = {}
         self.bidders_coeficient = {}
-        self.features = None
         self.mapping = {}
         self.rounds_stages = []
-
 
     def generate_request_id(self):
         self.request_id = generate_request_id()
@@ -159,12 +154,6 @@ class Auction(object):
         public_document = deepcopy(dict(self.auction_document))
         not_last_stage = self.auction_document["current_stage"] not in (len(self.auction_document["stages"]) - 1,
                                                                         len(self.auction_document["stages"]) - 2,)
-        if self.features and not_last_stage:
-            for stage_name in ['initial_bids', 'stages', 'results']:
-                public_document[stage_name] = map(
-                    filter_amount,
-                    public_document[stage_name]
-                )
         return public_document
 
     def get_auction_document(self, force=False):
@@ -247,9 +236,6 @@ class Auction(object):
         filtered_bids_data = []
         for bid_info in bids:
             bid_info_result = {key: bid_info[key] for key in BIDS_KEYS_FOR_COPY}
-            if self.features:
-                bid_info_result['amount_features'] = bid_info['amount_features']
-                bid_info_result['coeficient'] = bid_info['coeficient']
             bid_info_result["bidder_name"] = self.mapping[bid_info_result['bidder_id']]
             filtered_bids_data.append(bid_info_result)
         return filtered_bids_data
@@ -265,8 +251,6 @@ class Auction(object):
                 }
             }
         }
-        if self.lot_id:
-            self.audit["lot_id"] = self.lot_id
         for round_number in range(1, ROUNDS + 1):
             self.audit['timeline']['round_{}'.format(round_number)] = {}
 
@@ -283,13 +267,6 @@ class Auction(object):
         if self.auction_document["stages"][self.current_stage].get('changed', False):
             self.audit['timeline'][round_label][turn_label]["bid_time"] = self.auction_document["stages"][self.current_stage]['time']
             self.audit['timeline'][round_label][turn_label]["amount"] = self.auction_document["stages"][self.current_stage]['amount']
-            if self.features:
-                self.audit['timeline'][round_label][turn_label]["amount_features"] = str(
-                    self.auction_document["stages"][self.current_stage].get("amount_features")
-                )
-                self.audit['timeline'][round_label][turn_label]["coeficient"] = str(
-                    self.auction_document["stages"][self.current_stage].get("coeficient")
-                )
 
     def approve_audit_info_on_announcement(self, approved={}):
         self.audit['timeline']['results'] = {
@@ -310,10 +287,7 @@ class Auction(object):
         return iso8601.parse_date(datetime_stamp).astimezone(SCHEDULER.timezone)
 
     def get_auction_info(self, prepare=False):
-        if self.lot_id:
-            multiple_lots_tenders.get_auction_info(self, prepare)
-        else:
-            simple_tender.get_auction_info(self, prepare)
+        simple_tender.get_auction_info(self, prepare)
 
     def prepare_auction_stages_fast_forward(self):
         self.auction_document['auction_type'] = 'meat' if self.features else 'default'
@@ -322,16 +296,8 @@ class Auction(object):
         bids_info = sorting_start_bids_by_amount(bids, features=self.features)
         for index, bid in enumerate(bids_info):
             amount = bid["value"]["amount"]
-            if self.features:
-                amount_features = cooking(
-                    amount,
-                    self.features, self.bidders_features[bid["id"]]
-                )
-                coeficient = self.bidders_coeficient[bid["id"]]
-
-            else:
-                coeficient = None
-                amount_features = None
+            coeficient = None
+            amount_features = None
             initial_bid_stage = prepare_initial_bid_stage(
                 time=bid["date"] if "date" in bid else self.startDate,
                 bidder_id=bid["id"],
@@ -463,43 +429,28 @@ class Auction(object):
         if self.worker_defaults.get('sandbox_mode', False):
             submissionMethodDetails = self._auction_data['data'].get('submissionMethodDetails', '')
             if submissionMethodDetails == 'quick(mode:no-auction)':
-                if self.lot_id:
-                    results = multiple_lots_tenders.post_results_data(self, with_auctions_results=False)
-                else:
-                    results = simple_tender.post_results_data(self, with_auctions_results=False)
+                results = simple_tender.post_results_data(self, with_auctions_results=False)
                 return 0
             elif submissionMethodDetails == 'quick(mode:fast-forward)':
-                if self.lot_id:
-                    self.auction_document = multiple_lots_tenders.prepare_auction_document(self)
-                else:
-                    self.auction_document = simple_tender.prepare_auction_document(self)
+                self.auction_document = simple_tender.prepare_auction_document(self)
                 if not self.debug:
                     self.set_auction_and_participation_urls()
                 self.get_auction_info()
                 self.prepare_auction_stages_fast_forward()
                 self.save_auction_document()
-                if self.lot_id:
-                    multiple_lots_tenders.post_results_data(self, with_auctions_results=False)
-                else:
-                    simple_tender.post_results_data(self, with_auctions_results=False)
-                    simple_tender.announce_results_data(self, None)
+                simple_tender.post_results_data(self, with_auctions_results=False)
+                simple_tender.announce_results_data(self, None)
                 self.save_auction_document()
                 return
 
-        if self.lot_id:
-            self.auction_document = multiple_lots_tenders.prepare_auction_document(self)
-        else:
-            self.auction_document = simple_tender.prepare_auction_document(self)
+        self.auction_document = simple_tender.prepare_auction_document(self)
 
         self.save_auction_document()
         if not self.debug:
             self.set_auction_and_participation_urls()
 
     def set_auction_and_participation_urls(self):
-        if self.lot_id:
-            multiple_lots_tenders.prepare_auction_and_participation_urls(self)
-        else:
-            simple_tender.prepare_auction_and_participation_urls(self)
+        simple_tender.prepare_auction_and_participation_urls(self)
 
 
     ###########################################################################
@@ -586,7 +537,7 @@ class Auction(object):
         # Initital Bids
         bids = deepcopy(self.bidders_data)
         self.auction_document["initial_bids"] = []
-        bids_info = sorting_start_bids_by_amount(bids, features=self.features)
+        bids_info = sorting_start_bids_by_amount(bids)
         for index, bid in enumerate(bids_info):
             amount = bid["value"]["amount"]
             audit_info = {
@@ -594,17 +545,8 @@ class Auction(object):
                 "date": bid["date"],
                 "amount": amount
             }
-            if self.features:
-                amount_features = cooking(
-                    amount,
-                    self.features, self.bidders_features[bid["id"]]
-                )
-                coeficient = self.bidders_coeficient[bid["id"]]
-                audit_info["amount_features"] = str(amount_features)
-                audit_info["coeficient"] = str(coeficient)
-            else:
-                coeficient = None
-                amount_features = None
+            coeficient = None
+            amount_features = None
 
             self.audit['timeline']['auction_start']['initial_bids'].append(
                 audit_info
@@ -784,8 +726,6 @@ class Auction(object):
                 return False
             bid_info = {key: bid_info[key] for key in BIDS_KEYS_FOR_COPY}
             bid_info["bidder_name"] = self.mapping[bid_info['bidder_id']]
-            if self.features:
-                bid_info['amount_features'] = str(Fraction(bid_info['amount']) / self.bidders_coeficient[bid_info['bidder_id']])
             self.auction_document["stages"][self.current_stage] = prepare_bids_stage(
                 self.auction_document["stages"][self.current_stage],
                 bid_info
@@ -883,16 +823,10 @@ class Auction(object):
         else:
             doc_id = self.upload_audit_file_without_document_service()
 
-        if self.lot_id:
-            results = multiple_lots_tenders.post_results_data(self)
-        else:
-            results = simple_tender.post_results_data(self)
+        results = simple_tender.post_results_data(self)
 
         if results:
-            if self.lot_id:
-                bids_information = None
-            else:
-                bids_information = simple_tender.announce_results_data(self, results)
+            bids_information = simple_tender.announce_results_data(self, results)
 
             if doc_id and bids_information:
                 self.approve_audit_info_on_announcement(approved=bids_information)
@@ -912,10 +846,7 @@ class Auction(object):
     def post_announce(self):
         self.generate_request_id()
         self.get_auction_document()
-        if self.lot_id:
-            multiple_lots_tenders.announce_results_data(self, None)
-        else:
-            simple_tender.announce_results_data(self, None)
+        simple_tender.announce_results_data(self, None)
         self.save_auction_document()
 
     def cancel_auction(self):
