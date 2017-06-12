@@ -1,4 +1,5 @@
 from zope import interface
+from zope.interface.registry import Components
 from zope.interface import registry, implementedBy
 from openprocurement.auction.interfaces import IComponents
 
@@ -7,8 +8,7 @@ from openprocurement.auction.interfaces import IComponents
 class AuctionComponents(Components):
 
     def adapter(self, provides, adapts, name=""):
-        """ TODO: create decorator for such thinks """
-        
+        """ Adapter registration decorator """
         if not isinstance(adapts, (tuple, list)):
             adapts = (adapts,)
 
@@ -25,9 +25,7 @@ class AuctionComponents(Components):
         return wrapped
         
     def component(self):
-        """ TODO: use wraps decorator??
-        """
-        
+        """ Zope utility regitration decorator """
         def wrapped(Wrapped):
             try:
                 iface = list(implementedBy(Wrapped))[0]
@@ -38,7 +36,7 @@ class AuctionComponents(Components):
                 ob = self.queryUtility(iface, name=name)
                 if not ob:
                     ob = super(Wrapped, cls).__new__(*args, **kw)
-                    self.regiterUtility(ob, iface, name=name)
+                    self.registerUtility(ob, iface, name=name)
                 return ob
             Wrapped.__new__ = classmethod(new)
             return Wrapped
