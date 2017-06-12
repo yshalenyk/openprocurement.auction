@@ -45,12 +45,14 @@ from openprocurement_client.sync import get_tenders
 from yaml import load
 from .design import endDate_view, startDate_view, PreAnnounce_view
 from .utils import do_until_success
-from .log import AuctionLogger
+#from .log import AuctionLogger
 from design import sync_design
 
 from zope.interface import implementer
-from .interfaces import IAuctionDatabridge, IWorkerFactory
+from .interfaces import IAuctionDatabridge, IWorkerCmdFactory, IFeedItem
 from .components import components
+from .feed import FeedItem
+
 
 API_EXTRA = {'opt_fields': 'status,auctionPeriod,lots,procurementMethodType', 'mode': '_all_'}
 LOGGER = logging.getLogger(__name__)
@@ -61,7 +63,9 @@ LOGGER = logging.getLogger(__name__)
 class AuctionsDataBridge(object):
 
     """Auctions Data Bridge"""
-    logger = AuctionLogger(logger=LOGGER)
+    #logger = AuctionLogger(logger=LOGGER)
+    logger = LOGGER
+
     def __init__(self, config):
         super(AuctionsDataBridge, self).__init__()
         self.config = config
@@ -79,67 +83,38 @@ class AuctionsDataBridge(object):
     def config_get(self, name):
         return self.config.get('main').get(name)
 
-    def get_teders_list(self, re_planning=False):
-        for item in get_tenders(host=self.config_get('tenders_api_server'),
+    def run(self, re_planning=False):
+        self.logger.info('Start Auctions Bridge',
+                    extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_START_BRIDGE})
+        self.logger.info('Start data sync...',
+                    extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_DATA_SYNC})
+
+        for feed in get_tenders(host=self.config_get('tenders_api_server'),
                                 version=self.config_get('tenders_api_version'),
                                 key='', extra_params=API_EXTRA):
             # magic should happen here
             # TODO:
-            factory = components.qA(item, IWorkerFactory)
-            if not fatory:
-                continue 
-            if item['status'] == "active.auction":
-                if 'auctionPeriod' in item and 'startDate' in item['auctionPeriod'] \
-                        and 'endDate' not in item['auctionPeriod']:
+            item = FeedItem(feed)
+            factory = components.queryMultiAdapter(
+                (self, item),
+                IWorkerCmdFactory
+            )
+            factory()
+                #for cmd in factory():
+                #    # TODO: better logging
+                #    # self.logger.info('Tender {0} selected for planning'.format(*planning_data))
+                #    run_worker(cmd)
 
-                    start_date = iso8601.parse_date(item['auctionPeriod']['startDate'])
-                    start_date = start_date.astimezone(self.tz)
-                    auctions_start_in_date = startDate_view(
-                        self.db,
-                        key=(mktime(start_date.timetuple()) + start_date.microsecond / 1E6) * 1000
-                    )
-                    if datetime.now(self.tz) > start_date:
-                        self.logger("SKIP")
-                        continue
-                    if re_planning and item['id'] in self.tenders_ids_list:
-                        self.logger("ALREADY_REPLANNED")
-                        continue
-                    elif not re_planning and [row.id for row in auctions_start_in_date.rows if row.id == item['id']]:
-                        self.self.logger("ALREADY_PLANNED")
-                        continue
-                    yield factory((str(item['id']), ))
-
-            if item['status'] == "cancelled":
-                future_auctions = endDate_view(
-                    self.db, startkey=time() * 1000
-                )
-                if item["id"] in [i.id for i in future_auctions]:
-                    self.logger.info('CANCELLED')
-                    # TODO: yield
-                    #self.start_auction_worker_cmd('cancel', item["id"])
-
-
-    def start_auction_worker_cmd(self, cmd, tender_id, with_api_version=None):
+    def run_worker(self, params):
         params = [self.config_get('auction_worker'),
-                  cmd, tender_id,
+                  params,
                   self.config_get('auction_worker_config')]
-        if with_api_version:
-            params += ['--with_api_version', with_api_version]
         result = do_until_success(
             check_call,
             args=(params,),
         )
 
         self.logger.info("Auction command {} result: {}".format(params[1], result))
-
-    def run(self):
-        self.logger.info('Start Auctions Bridge',
-                    extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_START_BRIDGE})
-        self.logger.info('Start data sync...',
-                    extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_DATA_SYNC})
-        for planning_data in self.get_teders_list():
-            self.logger.info('Tender {0} selected for planning'.format(*planning_data))
-            self.start_auction_worker_cmd(planning_data)
 
     def run_re_planning(self):
         pass
@@ -178,8 +153,6 @@ def main():
         else:
             AuctionsDataBridge(config).run()
 
-
-##############################################################
 
 if __name__ == "__main__":
     main()
