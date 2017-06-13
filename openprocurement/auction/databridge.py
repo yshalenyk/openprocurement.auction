@@ -66,7 +66,7 @@ class AuctionsDataBridge(object):
     #logger = AuctionLogger(logger=LOGGER)
     logger = LOGGER
 
-    def __init__(self, config):
+    def __init__(self, config, re_planning=False):
         super(AuctionsDataBridge, self).__init__()
         self.config = config
         self.tenders_ids_list = []
@@ -79,11 +79,15 @@ class AuctionsDataBridge(object):
         self.db = Database(self.couch_url,
                            session=Session(retry_delays=range(10)))
         sync_design(self.db)
+        self.re_planning = re_planning
 
     def config_get(self, name):
         return self.config.get('main').get(name)
 
-    def run(self, re_planning=False):
+    def run(self):
+        if self.re_planning:
+            self.run_re_planning()
+            return
         self.logger.info('Start Auctions Bridge',
                     extra={'MESSAGE_ID': DATA_BRIDGE_PLANNING_START_BRIDGE})
         self.logger.info('Start data sync...',
@@ -99,11 +103,14 @@ class AuctionsDataBridge(object):
                 (self, item),
                 IWorkerCmdFactory
             )
-            factory()
-                #for cmd in factory():
-                #    # TODO: better logging
-                #    # self.logger.info('Tender {0} selected for planning'.format(*planning_data))
-                #    run_worker(cmd)
+            factory = factory and factory()
+            if factory:
+                for cmd in factory():
+                    # TODO: better cmd
+                    # TODO: better logging
+                    # self.logger.info('Tender {0} selected for planning'.format(*planning_data))
+                    # self.run_worker(cmd)
+                    print cmd
 
     def run_worker(self, params):
         params = [self.config_get('auction_worker'),
@@ -148,11 +155,8 @@ def main():
         with open(params.config) as config_file_obj:
             config = load(config_file_obj.read())
         logging.config.dictConfig(config)
-        if params.re_planning:
-            AuctionsDataBridge(config).run_re_planning()
-        else:
-            AuctionsDataBridge(config).run()
-
+        bridge = AuctionsDataBridge(config, re_planning=args.re_plannging)
+        bridge.run()
 
 if __name__ == "__main__":
     main()
