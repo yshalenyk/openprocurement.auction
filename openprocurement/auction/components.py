@@ -1,11 +1,33 @@
 from zope import interface
 from zope.interface.registry import Components
 from zope.interface import registry, implementedBy
-from openprocurement.auction.interfaces import IComponents
+
+from walkabout import PredicateDomain, PredicateMismatch
+
+from openprocurement.auction.interfaces import IComponents, IAuctionType, IFeedItem
 
 
 @interface.implementer(IComponents)
 class AuctionComponents(Components):
+
+    def __init__(self, *args, **kw):
+        super(AuctionComponents, self).__init__(*args, **kw)
+
+        self._dispatch = PredicateDomain(IAuctionType, self)
+
+    def add_predicate(self, *args, **kw):
+        self._dispatch.add_predicate(*args)
+
+    def add_auction(self, auction_iface, **preds):
+        self._dispatch.add_candidate(
+            auction_iface, IFeedItem, **preds
+        )
+
+    def match(self, inst):
+        try:
+            return self._dispatch.lookup(inst)
+        except PredicateMismatch:
+            pass
 
     def adapter(self, provides, adapts, name=""):
         """ Adapter registration decorator """
@@ -27,16 +49,15 @@ class AuctionComponents(Components):
     def component(self):
         """ Zope utility regitration decorator """
         def wrapped(Wrapped):
-            try:
-                iface = list(implementedBy(Wrapped))[0]
-            except IndexError:
+            iface = list(implementedBy(Wrapped))
+            if not iface:
                 raise ValueError("{} should be marked as interface".format(Wrapped.__name__))
             name = Wrapped.__name__.lower()
             def new(cls, *args, **kw):
-                ob = self.queryUtility(iface, name=name)
+                ob = self.queryUtility(iface[0], name=name)
                 if not ob:
                     ob = super(Wrapped, cls).__new__(*args, **kw)
-                    self.registerUtility(ob, iface, name=name)
+                    self.registerUtility(ob, iface[0], name=name)
                 return ob
             Wrapped.__new__ = classmethod(new)
             return Wrapped

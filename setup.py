@@ -55,6 +55,7 @@ setup(name='openprocurement.auction',
           'openprocurement_client',
           'python-consul',
           'retrying',
+          'walkabout'
       ],
       extras_require={
           'test': [
@@ -75,6 +76,9 @@ setup(name='openprocurement.auction',
           ],
           'paste.app_factory': [
               'auctions_server = openprocurement.auction.auctions_server:make_auctions_app',
+          ],
+          'openprocurement.auction.plugins': [
+              'simple_auction = openprocurement.auction.includeme:includeme'
           ]
       },
       )
