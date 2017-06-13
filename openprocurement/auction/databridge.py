@@ -105,7 +105,7 @@ class AuctionsDataBridge(object):
             )
             factory = factory and factory()
             if factory:
-                for cmd in factory():
+                for cmd in factory:
                     # TODO: better cmd
                     # TODO: better logging
                     # self.logger.info('Tender {0} selected for planning'.format(*planning_data))
