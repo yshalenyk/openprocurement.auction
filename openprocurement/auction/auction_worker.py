@@ -12,28 +12,14 @@ import re
 from openprocurement.auction.interfaces import IAuctionWorker
 from openprocurement.auction.components import components
 from openprocurement.auction.services import SCHEDULER
+from openprocurement.auction.interfaces import IAuctionCli
 
 
-PLANNING_FULL = "full"
-PLANNING_PARTIAL_DB = "partial_db"
-PLANNING_PARTIAL_CRON = "partial_cron"
 LOGGER = logging.getLogger('Auction Worker')
 
 
 def main():
-    parser = argparse.ArgumentParser(description='---- Auction ----')
-    parser.add_argument('cmd', type=str, help='')
-    parser.add_argument('auction_doc_id', type=str, help='auction_doc_id')
-    parser.add_argument('auction_worker_config', type=str,
-                        help='Auction Worker Configuration File')
-    parser.add_argument('--auction_info', type=str, help='Auction File')
-    parser.add_argument('--type', type=str, default='default', help='Auction File')
-    parser.add_argument('--auction_info_from_db', type=str, help='Get auction data from local database')
-    parser.add_argument('--with_api_version', type=str, help='Tender Api Version')
-    parser.add_argument('--lot', type=str, help='Specify lot in tender', default=None)
-    parser.add_argument('--planning_procerude', type=str, help='Override planning procerude',
-                        default=None, choices=[None, PLANNING_FULL, PLANNING_PARTIAL_DB, PLANNING_PARTIAL_CRON])
-
+    parser = components.q(IAuctionCli)
     args = parser.parse_args()
 
     if os.path.isfile(args.auction_worker_config):
@@ -42,8 +28,6 @@ def main():
             worker_defaults['TENDERS_API_VERSION'] = args.with_api_version
         if args.cmd != 'cleanup':
             worker_defaults['handlers']['journal']['TENDER_ID'] = args.auction_doc_id
-            if args.lot:
-                worker_defaults['handlers']['journal']['TENDER_LOT_ID'] = args.lot
         for key in ('TENDERS_API_VERSION', 'TENDERS_API_URL',):
             worker_defaults['handlers']['journal'][key] = worker_defaults[key]
 
@@ -66,7 +50,7 @@ def main():
     auction = auction_class(args.auction_doc_id,
                             worker_defaults=worker_defaults,
                             auction_data=auction_data,
-                            lot_id=args.lot)
+                            )
     if args.cmd == 'run':
         SCHEDULER.start()
         auction.schedule_auction()

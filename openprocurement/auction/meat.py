@@ -245,7 +245,8 @@ class MeatStagesServiceMixin(StagesServiceMixin):
                     'bidder_name': '',
                     'amount': '0',
                     'time': ''
-                })
+                },
+                 activate=False)
                 self.auction_document['stages'].append(bid_stage)
                 next_stage_timedelta += timedelta(seconds=BIDS_SECONDS)
 
@@ -409,8 +410,7 @@ class MeatAuction(MeatDBServiceMixin,
     def __init__(self, tender_id,
                  worker_defaults={},
                  auction_data={},
-                 lot_id=None,
-                 activate=False):
+                 lot_id=None):
         super(MeatAuction, self).__init__()
         self.generate_request_id()
         self.tender_id = tender_id
@@ -425,7 +425,6 @@ class MeatAuction(MeatDBServiceMixin,
                 worker_defaults["TENDERS_API_VERSION"], tender_id
             )
         )
-        self.activate = activate
         if auction_data:
             self.debug = True
             LOGGER.setLevel(logging.DEBUG)

@@ -28,6 +28,21 @@ class Auction(DBServiceMixin,
     """Auction Worker Class"""
 
     klass = 'default'
+    
+    @classmethod
+    def run_params(cls, doc_id, view_value):
+        params = ['--type', cls.klass]
+        if '_' in doc_id:
+            tender_id, lot_id = doc_id.split('_')
+            if lot_id:
+                params += ['--lot', lot_id]
+
+        if view_value.get('api_version', ''):
+            params += ['--with_api_version', view_value['api_version']]
+
+        if view_value['mode'] == 'test':
+            params += ['--auction_info_from_db', 'true']
+        return params
 
     def __init__(self, tender_id,
                  worker_defaults={},

@@ -1,11 +1,14 @@
 import logging
+import argparse
+
 from zope import interface
 from zope.interface import registry, implementedBy
 from walkabout import PredicateDomain, PredicateMismatch
 from pkg_resources import iter_entry_points
 
+from openprocurement.auction.cli import parser
 from openprocurement.auction.interfaces import IComponents, IAuctionType,\
-    IFeedItem, IAuctionDatabridge, IAuctionsMapper, IAuctionsRunner, IAuctionWorker
+    IFeedItem, IAuctionDatabridge, IAuctionsMapper, IAuctionsRunner, IAuctionWorker, IAuctionCli
 
 
 PKG_NAMESPACE = "openprocurement.auction.plugins"
@@ -37,8 +40,6 @@ class AuctionComponents(registry.Components):
             pass
 
     def adapter(self, provides, adapts, name=""):
-        """ TODO: create decorator for such thinks """
-
         if not isinstance(adapts, (tuple, list)):
             adapts = (adapts,)
 
@@ -58,7 +59,6 @@ class AuctionComponents(registry.Components):
         return self.queryAdapter(obj, iface, name=name)
 
     def q(self, iface, name='', default=''):
-        """ TODO: query the component by 'iface' """
         return self.queryUtility(iface, name=name, default=default)
 
 
@@ -91,8 +91,11 @@ class AuctionMapper(object):
             auction_iface
         )
 
+
 WS = PKG_NAMESPACE.replace('plugins', 'workers')
 for worker in iter_entry_points(WS):
     plugin = worker.load()
-    print "loading {} {}".format(worker.name.lower(), plugin)
     components.registerUtility(plugin, IAuctionWorker, name=worker.name.lower())
+
+
+components.registerUtility(parser, IAuctionCli)

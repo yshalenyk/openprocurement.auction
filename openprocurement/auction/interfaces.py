@@ -26,3 +26,10 @@ class IAuctionsMapper(Interface):
 
 class IAuctionType(Interface):
     """"""
+
+
+class IAuctionScheduler(Interface):
+    """"""
+
+class IAuctionCli(Interface):
+    """ Openprocurement Auction worker argumet parser"""

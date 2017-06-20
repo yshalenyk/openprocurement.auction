@@ -398,3 +398,13 @@ def filter_amount(stage):
         del stage['coeficient']
     return stage
 
+
+def get_auction_worker_configuration_path(worker, view_value, key='api_version'):
+        value = view_value.get(key, '')
+        if value:
+            k = 'auction_worker_config_for_{}_{}'.format(key, value)
+            return worker.config['main'].get(
+                k, worker.config['main']['auction_worker_config']
+            )
+
+        return worker.config['main']['auction_worker_config']
