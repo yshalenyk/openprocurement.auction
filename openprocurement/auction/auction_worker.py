@@ -9,6 +9,8 @@ import sys
 import os
 import re
 
+from yaml import load as yaml_load
+
 from openprocurement.auction.interfaces import IAuctionWorker
 from openprocurement.auction.components import components
 from openprocurement.auction.services import SCHEDULER
@@ -37,7 +39,7 @@ def main():
     args = parser.parse_args()
 
     if os.path.isfile(args.auction_worker_config):
-        worker_defaults = json.load(open(args.auction_worker_config))
+        worker_defaults = yaml_load(open(args.auction_worker_config))
         if args.with_api_version:
             worker_defaults['TENDERS_API_VERSION'] = args.with_api_version
         if args.cmd != 'cleanup':
