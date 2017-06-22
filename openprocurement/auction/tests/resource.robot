@@ -7,7 +7,7 @@ Library        openprocurement.auction.tests.service_keywords
 
 *** Variables ***
 ${USERS}
-${BROWSER}       phantomjs
+${BROWSER}       chrome
 
 *** Keywords ***
 Підготовка тесту
@@ -48,12 +48,12 @@ ${BROWSER}       phantomjs
 
 
 Дочекатистись учасником початку стадії ставок
-    [Arguments]    ${timeout}=2 min
+    [Arguments]    ${timeout}=3 min
     Wait Until Page Contains        до закінчення вашої черги   ${timeout}
 
 
 Дочекатистись учасником закінчення стадії ставок
-    [Arguments]    ${timeout}=2 min
+    [Arguments]    ${timeout}=3 min
     Wait Until Page Does Not Contain         до закінчення вашої черги   ${timeout}
 
 Дочекатистись до завершення аукціону

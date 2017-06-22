@@ -198,11 +198,12 @@ def post_bid():
                 current_time = datetime.now(timezone('Europe/Kiev'))
                 if form.validate():
                     # write data
+                    bid_amount = form.data['bid_yearly_payments'] + form.data['bid_contract_duration']
                     auction.add_bid(form.document['current_stage'],
-                                    {'amount': form.data['bid'],
+                                    {'amount': bid_amount,
                                      'bidder_id': form.data['bidder_id'],
                                      'time': current_time.isoformat()})
-                    if form.data['bid'] == -1.0:
+                    if bid_amount == -1.0:
                         app.logger.info("Bidder {} with client_id {} canceled bids in stage {} in {}".format(
                             form.data['bidder_id'], session['client_id'],
                             form.document['current_stage'], current_time.isoformat()
@@ -210,7 +211,7 @@ def post_bid():
                     else:
                         app.logger.info("Bidder {} with client_id {} placed bid {} in {}".format(
                             form.data['bidder_id'], session['client_id'],
-                            form.data['bid'], current_time.isoformat()
+                            bid_amount, current_time.isoformat()
                         ), extra=prepare_extra_journal_fields(request.headers))
                     response = {'status': 'ok', 'data': form.data}
                 else:
