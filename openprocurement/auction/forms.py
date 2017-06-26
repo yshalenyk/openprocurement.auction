@@ -17,20 +17,21 @@ def validate_bid_value(form, field):
         raise ValidationError(u'Too low value')
 
 
-def validate_bid_change_on_bidding(form, field):
+def validate_bid_change_on_bidding(form, bid_yearly_payments, bid_contract_duration):
     """
     Bid must be lower then previous bidder bid amount minus minimalStep amount
     """
     stage_id = form.document['current_stage']
+    new_amount = bid_yearly_payments + bid_contract_duration
     if form.auction.features:
         prev_bid = form.document['stages'][stage_id]['amount_features']
         minimal = Fraction(prev_bid) * form.auction.bidders_coeficient[form.data['bidder_id']]
         minimal += Fraction(form.document['minimalStep']['amount'])
-        if field.data < minimal and field.data != -1:
+        if new_amount < minimal and new_amount != -1:
             raise ValidationError(u'Too low value')
     else:
         minimal_bid = form.document['stages'][stage_id]['amount']
-        if field.data < (minimal_bid + form.document['minimalStep']['amount']) and field.data != -1:
+        if new_amount < (minimal_bid + form.document['minimalStep']['amount']) and new_amount != -1:
             raise ValidationError(u'Too low value')
 
 
@@ -53,17 +54,13 @@ class BidsForm(Form):
     bid_contract_duration = FloatField('bid_contractDuration', [InputRequired(message=u'Bid contract duration is required'),
                              validate_bid_value])
 
-    def validate_bid_yearly_payment(self, field):
+    def validate(self):
+        if not super(BidsForm, self).validate():
+            return False
         stage_id = self.document['current_stage']
         if self.document['stages'][stage_id]['type'] == 'bids':
-            validate_bid_change_on_bidding(self, field)
-        else:
-            raise ValidationError(u'Stage not for bidding')
-
-    def validate_bid_contract_duration(self, field):
-        stage_id = self.document['current_stage']
-        if self.document['stages'][stage_id]['type'] == 'bids':
-            validate_bid_change_on_bidding(self, field)
+            validate_bid_change_on_bidding(self, self.bid_yearly_payments.data, self.bid_contract_duration.data)
+            return True
         else:
             raise ValidationError(u'Stage not for bidding')
 

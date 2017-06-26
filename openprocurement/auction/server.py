@@ -196,6 +196,9 @@ def post_bid():
                 form.auction = auction
                 form.document = auction.db.get(auction.auction_doc_id)
                 current_time = datetime.now(timezone('Europe/Kiev'))
+                app.logger.info("Form {}".format(
+                        form.validate()
+                ))
                 if form.validate():
                     # write data
                     bid_amount = form.data['bid_yearly_payments'] + form.data['bid_contract_duration']
