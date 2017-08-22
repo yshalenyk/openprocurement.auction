@@ -122,8 +122,6 @@ def event_source():
                 identification_data = {"bidder_id": bidder,
                                        "client_id": client_hash,
                                        "return_url": session.get('return_url', '')}
-                if current_app.config['auction'].features:
-                    identification_data["coeficient"] = str(current_app.config['auction'].bidders_coeficient[bidder])
 
                 send_event_to_client(bidder, client_hash, identification_data,
                                      "Identification")
